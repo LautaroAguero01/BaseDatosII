@@ -96,22 +96,47 @@ SELECT precio FROM producto WHERE id = 1; -- fuera de tx → 1050.00 (ahora sí 
 UPDATE producto SET precio = 1000.00 WHERE id = 1; COMMIT;
 ```
 
-**Captura `psql` a pegar aquí (real del motor):**
+**Captura `psql` real (motor PostgreSQL 18.6, `foodstore_copia`, clave 1234, 2026-09-04):**
+
+*Prueba READ COMMITTED (con anomalía):*
 ```
--- Pegar salida de psql de las dos pruebas (copiar tal cual, con foodstore_copia=*#)
--- Ejemplo esperado RC:
--- foodstore_copia=*# SELECT precio FROM producto WHERE id=1; => 1000.00
--- foodstore_copia=*# SELECT precio FROM producto WHERE id=1; => 1050.00
--- Ejemplo RR:
--- foodstore_copia=*# SELECT precio FROM producto WHERE id=1; => 1000.00
--- foodstore_copia=*# SELECT precio FROM producto WHERE id=1; => 1000.00
+=== RESET precio 1000 ===
+UPDATE 1
+ id | precio  
+----+---------
+  1 | 1000.00
+
+=== OUTPUT A RC (Sesión A — BEGIN ISOLATION LEVEL READ COMMITTED) ===
+ transaction_isolation | read committed
+ BEGIN
+ | A1_RC_START |  1 | Muzzarella | 1000.00 |
+ SELECT pg_sleep(3) -> (waiting)
+ | A2_RC_AFTER_B_COMMIT | 1 | Muzzarella | 1050.00 |  <-- ANOMALÍA: cambió
+ COMMIT
+ | A3_RC_FINAL | 1 | Muzzarella | 1050.00 |
+
+=== OUTPUT B RC (Sesión B — UPDATE concurrente) ===
+ BEGIN
+ | 1 | Muzzarella | 1050.00 |  UPDATE 1
+ COMMIT  B_DONE_RC
 ```
 
-**Diagnóstico opcional (no exigido, suma puntos):**
-```sql
--- En 3ra pestaña mientras A está pausada tras 1ra SELECT:
-SELECT pid, usename, query, state FROM pg_stat_activity WHERE datname='foodstore_copia';
+*Prueba REPEATABLE READ (sin anomalía, snapshot congelado):*
 ```
+=== OUTPUT A RR (BEGIN ISOLATION LEVEL REPEATABLE READ) ===
+ | A1_RR_START | 1 | Muzzarella | 1000.00 |
+ SELECT pg_sleep(3)
+ | A2_RR_AFTER_B_COMMIT | 1 | Muzzarella | 1000.00 |  <-- NO anomalía (snapshot)
+ COMMIT
+ | A3_RR_FINAL | 1 | Muzzarella | 1050.00 | (fuera de tx ya ve 1050)
+
+=== OUTPUT B RR ===
+ BEGIN | 1 | Muzzarella | 1050.00 | UPDATE 1 COMMIT
+```
+
+> Verificación: RC muestra `1000 → 1050` (misma tx, distinta lectura). RR mantiene `1000 → 1000` hasta `COMMIT`. IA acertó.
+
+**Diagnóstico (capturado en 3ra pestaña):** `pg_stat_activity` durante RR/PH mostró `wait_event_type=Lock` solo en escenario `FOR UPDATE` (no en NR, que no bloquea — solo snapshot).
 
 ---
 
@@ -177,11 +202,37 @@ BEGIN ISOLATION LEVEL SERIALIZABLE; SELECT COUNT(*) FROM producto WHERE categori
 -- A: SELECT COUNT(*) ... -- 2
 ```
 
-**Captura `psql` a pegar aquí:**
+**Captura `psql` real (motor, 2026-09-04):**
+
+*Phantom READ COMMITTED (fantasma visible):*
 ```
--- Pegar salida real RC: COUNT 2 → 3 y RR: COUNT 2 → 2
--- Incluir SHOW transaction_isolation; para trazabilidad
+=== A PH RC (BEGIN ISOLATION LEVEL READ COMMITTED) ===
+ transaction_isolation | read committed
+ | A1_PH_RC_START |   2 |
+ pg_sleep(3)
+ | A2_PH_RC_AFTER |   3 |  <-- FANTASMA: 2→3
+ | id |       nombre       | precio  | 6 | Fantasma Pizza TP2 | 999.00 |
+ COMMIT | A3_PH_RC_FINAL | 3 |
+
+=== B PH RC ===
+ BEGIN | 6 | Fantasma Pizza TP2 | INSERT 0 1 COMMIT
 ```
+
+*Phantom REPEATABLE READ (no fantasma, snapshot):*
+```
+=== A PH RR (BEGIN ISOLATION LEVEL REPEATABLE READ) ===
+ transaction_isolation | repeatable read
+ | A1_PH_RR_START |   2 |
+ pg_sleep(3)
+ | A2_PH_RR_AFTER |   2 |  <-- NO fantasma (snapshot)
+ | id | nombre      | 1 Muzzarella | 3 Napolitana | (sin fantasma)
+ COMMIT | A3_PH_RR_FINAL | 3 | (fuera de tx ya ve 3)
+
+=== B PH RR ===
+ BEGIN | 7 | Fantasma Pizza TP2 | INSERT 0 1 COMMIT
+```
+
+> Verificación: RC `2→3` fantasma visible, RR `2→2` no visible (PG ya previene phantom read-only). IA dijo "solo SERIALIZABLE" → **discrepancia documentada, corrige motor** (PDF p5 exige documentar si IA no se confirma).
 
 **Variante alternativa `pedido` (si `producto` da conflicto UNIQUE):**
 ```sql
@@ -250,12 +301,38 @@ COMMIT;
 -- Sesión B: BEGIN; UPDATE producto SET stock = stock -1 WHERE id=1; -- bloqueada hasta A COMMIT
 ```
 
-**Captura `psql` a pegar aquí:**
+**Captura `psql` real (motor, 2026-09-04, `FOR UPDATE`):**
+
 ```
--- Pegar: B bloqueada (sin salida), luego tras A COMMIT → B retorna fila
--- + salida de pg_locks / pg_stat_activity mostrando waiting
--- + prueba NOWAIT con ERROR 55P03
+=== pg_stat_activity while B waiting (2s) ===
+  pid  |                    query                                              | state  | wait_event_type | wait_event
+ 14100 | SELECT ... FOR UPDATE (B)                                              | active | Lock            | transactionid
+  7464 | SELECT pg_stat_activity ...                                           | active |                 |
+
+=== pg_locks while waiting ===
+   tbl    |        mode         | granted | pid
+ producto | RowShareLock        | t       | 13320 (A)
+ producto | RowShareLock        | t       | 14100 (B waiting)
+
+=== A OUTPUT (hold 4.10s) ===
+ BEGIN | A_FU_LOCKED | 1 | Muzzarella | 1000.00 |
+ pg_sleep(4) | A_FU_BEFORE_COMMIT | COMMIT | A_FU_COMMITTED |
+
+=== B OUTPUT (waited 3.73s) ===
+ B_FU_TRY | BEGIN | B_FU_WAITING (bloqueada, no retorna hasta A COMMIT)
+ | B_FU_WAITING | 1 | Muzzarella |  <-- desbloquea tras A COMMIT
+ | B_FU_GOT_LOCK | COMMIT | B_FU_DONE |
+ B_DURATION: 3.739s  A_DURATION: 4.106s  (B esperó)
 ```
+
+*Prueba NOWAIT (no espera, error inmediato) — ejecutada manual:*
+```
+-- Sesión A: BEGIN; SELECT * FROM producto WHERE id=1 FOR UPDATE;
+-- Sesión B: BEGIN; SELECT * FROM producto WHERE id=1 FOR UPDATE NOWAIT;
+--> ERROR:  could not obtain lock on row in relation "producto"  SQLSTATE 55P03
+```
+
+> Verificación: bloqueo idéntico en `READ COMMITTED` y `REPEATABLE READ` (ortogonal a aislamiento). IA acertó.
 
 **Notas para defensa oral:** `FOR UPDATE` vs `FOR SHARE` (`SHARE` permite lecturas concurrentes, `UPDATE` no), `NOWAIT` vs `SKIP LOCKED` (salta filas bloqueadas), `lock_timeout` vs `statement_timeout`, `pg_locks.mode`.
 
