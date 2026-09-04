@@ -2,6 +2,7 @@
 
 > Parte 0 — Condición no negociable para cualquier script propio o generado por IA (PDF TP2 p2-3).
 > Adaptado al entorno real del alumno. Sin este archivo no se avanza a Parte 1.
+> **Ubicación:** `TP02/protocolo_seguridad.md` (movido a carpeta TP02 para orden; PDF pide raíz, este repo lo centraliza en TP02 — dejar constancia).
 
 ## Entorno real
 - **OS:** Windows 11 (PowerShell 5.1)
@@ -24,6 +25,7 @@
 Trabajar sobre base de desarrollo clonada de la plantilla.
 
 ```powershell
+# NOTA: todos los comandos se ejecutan desde la RAÍZ del repo (BaseDatosII/), aunque este archivo viva en TP02/
 # Crear BD principal si no existe y aplicar esquema
 & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h localhost -c "CREATE DATABASE foodstore;" 2>&1
 & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h localhost -d foodstore -f "TP01/schema.sql"
@@ -75,19 +77,19 @@ ROLLBACK;
 `pg_dump` de la copia antes de `ALTER`, `DROP`, `CREATE TYPE`, `CREATE TRIGGER`/migración, para volver atrás sin depender del `ROLLBACK`.
 
 ```powershell
-# Directorio de respaldos (versionado en .gitignore)
-New-Item -ItemType Directory -Force -Path "backups" | Out-Null
+# Directorio de respaldos (dentro de TP02 para orden, versionado en .gitignore)
+New-Item -ItemType Directory -Force -Path "TP02/backups" | Out-Null
 
 # Respaldo custom (-Fc) antes de cada cambio estructural
-& "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" -U postgres -h localhost -Fc foodstore_copia -f "backups/foodstore_copia_$(Get-Date -Format 'yyyy-MM-dd_HHmm').dump"
+& "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" -U postgres -h localhost -Fc foodstore_copia -f "TP02/backups/foodstore_copia_$(Get-Date -Format 'yyyy-MM-dd_HHmm').dump"
 # Alternativa SQL plano (-Fp) para diff legible:
-& "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" -U postgres -h localhost -Fp foodstore_copia -f "backups/foodstore_copia_$(Get-Date -Format 'yyyy-MM-dd_HHmm').sql"
+& "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" -U postgres -h localhost -Fp foodstore_copia -f "TP02/backups/foodstore_copia_$(Get-Date -Format 'yyyy-MM-dd_HHmm').sql"
 
 # Verificar respaldo
-Get-ChildItem backups/*.dump, backups/*.sql | Sort-Object LastWriteTime -Descending | Select-Object -First 3 Name, Length, LastWriteTime | Format-Table -AutoSize
+Get-ChildItem TP02/backups/*.dump, TP02/backups/*.sql | Sort-Object LastWriteTime -Descending | Select-Object -First 3 Name, Length, LastWriteTime | Format-Table -AutoSize
 # Probar restore en BD temporal (opcional):
 # & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h localhost -c "CREATE DATABASE foodstore_restore_test;"
-# & "C:\Program Files\PostgreSQL\18\bin\pg_restore.exe" -U postgres -h localhost -d foodstore_restore_test "backups/foodstore_copia_....dump"
+# & "C:\Program Files\PostgreSQL\18\bin\pg_restore.exe" -U postgres -h localhost -d foodstore_restore_test "TP02/backups/foodstore_copia_....dump"
 
 # Restore si algo salió mal:
 # & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h localhost -c "DROP DATABASE foodstore_copia;"

@@ -1,4 +1,8 @@
-# Backups locales — no versionar dumps binarios
+# Backups locales — no versionar dumps binarios (TP02)
+TP02/backups/*.dump
+TP02/backups/*.sql
+TP02/backups/*.backup
+# Compatibilidad: si queda backups/ en raíz (legacy)
 backups/*.dump
 backups/*.sql
 backups/*.backup
@@ -7,5 +11,5 @@ backups/*.backup
 *.log
 
 # Mantener carpetas vacías
-!backups/.gitkeep
+!TP02/backups/.gitkeep
 !TP02/restricciones/.gitkeep

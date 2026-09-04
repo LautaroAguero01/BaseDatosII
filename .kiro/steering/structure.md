@@ -4,12 +4,12 @@
 - `TP01/schema.sql` — fuente de verdad DDL (orden FK: categoria → cliente → producto → pedido → pedido_producto)
 - `TP01/DUIA.md` — DUIA Semana 1 (referencia formato)
 - `TP02/TP2_Laboratorio_Concurrencia_IA.pdf` — consigna (7 páginas, 4 partes)
-- `protocolo_seguridad.md` — Parte 0 (raíz, adaptado Windows/psql)
+- `TP02/protocolo_seguridad.md` — Parte 0 (adaptado Windows/psql, movido a TP02 para orden)
 - `TP02/restricciones/` — Parte 1 scripts versionados (`01_check_fecha.sql`, `02_trigger_activo.sql`)
 - `TP02/informe_concurrencia.md` — Parte 2 (3 escenarios SAFE: No Repetible, Fantasma, FOR UPDATE)
 - `TP02/ejercicio_lectura_critica.md` — Parte 3 (2 scripts)
 - `TP02/DUIA.md` — DUIA única (secciones Parte1/2/3 con tabla Herramienta/Prompt/Qué generó/Qué se aceptó/Verificación)
-- `backups/` — dumps `pg_dump -Fc` (gitignored)
+- `TP02/backups/` — dumps `pg_dump -Fc` (gitignored, movido a TP02 para orden)
 
 ## Dependencias entre partes
 - Parte 0 bloquea todo: sin protocolo no se toca BD

@@ -7,19 +7,19 @@
 - **Esquema principal:** `TP01/schema.sql` — DDL PostgreSQL 15+ idempotente (DROP IF EXISTS + CREATE), 5 tablas, `forma_pago_enum`, PK/FK `ON DELETE RESTRICT`, `UNIQUE(email)`, 3 CHECK, 2 INDEX comentados.
 - **Modelo:** `TP01/Desarrollo_Partes_1_2_3.pdf` + `TP01/TP1_FoodStore_ModeloER_Normalizacion_DDL.pdf` + `TP01/Diagrama.png` (dbdiagram.io)
 - **DUIA:** `TP01/DUIA.md` (OpenCode + muse-spark-1.2 como motor primario), `TP02/DUIA.md` única para TP2
-- **Entregables TP2:** `protocolo_seguridad.md`, `TP02/restricciones/*.sql`, `TP02/informe_concurrencia.md`, `TP02/ejercicio_lectura_critica.md`
+- **Entregables TP2:** `TP02/protocolo_seguridad.md`, `TP02/restricciones/*.sql`, `TP02/informe_concurrencia.md`, `TP02/ejercicio_lectura_critica.md`
 
 ## Estructura de directorios
 ```
 BaseDatosII/
  ├─ TP01/schema.sql
  ├─ TP01/Desarrollo_Partes_1_2_3.pdf
- ├─ protocolo_seguridad.md      # Parte 0 — 3 pasos adaptados
+ ├─ TP02/protocolo_seguridad.md # Parte 0 — 3 pasos adaptados
  ├─ TP02/restricciones/         # Parte 1 — scripts versionados
  ├─ TP02/informe_concurrencia.md # Parte 2 — 3 escenarios SAFE
  ├─ TP02/ejercicio_lectura_critica.md # Parte 3
  ├─ TP02/DUIA.md                # DUIA única (3 secciones)
- └─ backups/                    # pg_dump, .gitignore
+ └─ TP02/backups/               # pg_dump (gitignored, TP02)
 ```
 
 ## Convenciones del esquema (Food Store)
@@ -36,7 +36,7 @@ BaseDatosII/
 3. **Diff obligatorio:** `git diff` línea por línea antes de aplicar sobre BD. Si una línea no se entiende, no se aplica
 4. **Kiro:** steering docs en `.kiro/steering/` con convenciones de nombres, ENUM, borrado lógico `activo`
 
-## Protocolo de seguridad (copia, transacción, respaldo) — ver `protocolo_seguridad.md`
+## Protocolo de seguridad (copia, transacción, respaldo) — ver `TP02/protocolo_seguridad.md`
 - **Copia:** siempre sobre `foodstore_copia` (`CREATE DATABASE ... TEMPLATE`), nunca sobre `foodstore` real
 - **Transacción:** todo `ALTER/INSERT/UPDATE/DELETE` primero en `BEGIN; ...; ROLLBACK;` para inspeccionar, luego `BEGIN; ...; COMMIT;`
 - **Respaldo:** `pg_dump -Fc` antes de DDL estructural
@@ -51,11 +51,11 @@ BaseDatosII/
 # Git
 git status; git diff; git diff --cached
 git log --oneline -10
-git add protocolo_seguridad.md TP02/restricciones/*.sql
+git add TP02/protocolo_seguridad.md TP02/restricciones/*.sql
 git commit -m "feat: ..."
 
-# Backups
-& "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" -U postgres -h localhost -Fc foodstore -f backups/foodstore_2026-09-04.dump
+# Backups (dentro de TP02 para orden)
+& "C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" -U postgres -h localhost -Fc foodstore -f TP02/backups/foodstore_2026-09-04.dump
 ```
 
 ## Reglas para agentes
