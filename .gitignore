@@ -1,0 +1,11 @@
+# Backups locales — no versionar dumps binarios
+backups/*.dump
+backups/*.sql
+backups/*.backup
+
+# Temporal psql
+*.log
+
+# Mantener carpetas vacías
+!backups/.gitkeep
+!TP02/restricciones/.gitkeep
